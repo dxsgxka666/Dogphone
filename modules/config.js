@@ -11,34 +11,36 @@ export function initSettings() {
     onOpen: (phoneScreen) => {
       const appView = document.createElement('div');
       appView.className = 'app-view active';
-      appView.style.cssText = 'position: absolute; inset: 0; background: rgba(255,255,255,.97); z-index: 100; display: flex; flex-direction: column; border-radius: 34px;';
+      // 注意这里：增加了 overflow: hidden; 防止父容器溢出
+      appView.style.cssText = 'position: absolute; inset: 0; background: rgba(255,255,255,.97); z-index: 100; display: flex; flex-direction: column; border-radius: 34px; overflow: hidden;';
       
       appView.innerHTML = `
-        <div class="app-view-header" style="height: 50px; display: flex; align-items: center; padding: 0 16px; border-bottom: 1px solid #e0e0e0;">
+        <div class="app-view-header" style="height: 50px; display: flex; align-items: center; padding: 0 16px; border-bottom: 1px solid #e0e0e0; flex-shrink: 0;">
           <button onclick="this.closest('.app-view').remove()" style="background: none; border: none; font-size: 16px; color: #007aff; cursor: pointer;">← 返回</button>
           <div class="app-view-title" style="flex: 1; text-align: center; font-weight: 600; font-size: 16px; color: #1a1a1a;">设置</div>
         </div>
-        <div class="app-view-content" style="flex: 1; padding: 20px; padding-bottom: 60px; overflow-y: auto;">
+        <!-- 注意这里：增加了 box-sizing: border-box; overflow-x: hidden; width: 100%; -->
+        <div class="app-view-content" style="flex: 1; padding: 20px; padding-bottom: 60px; overflow-y: auto; overflow-x: hidden; width: 100%; box-sizing: border-box;">
           <label style="font-size:14px; font-weight:600; margin-bottom:8px; display:block; color:#333;">手机背景</label>
-          <label class="setting-btn" style="display: block; width: 100%; padding: 12px; border-radius: 10px; background: #f0f2f5; color: #1a1a1a; border: 1px solid #d0d5dd; cursor: pointer; font-size: 14px; text-align: center; margin-bottom: 16px;">
+          <label class="setting-btn" style="display: block; width: 100%; padding: 12px; border-radius: 10px; background: #f0f2f5; color: #1a1a1a; border: 1px solid #d0d5dd; cursor: pointer; font-size: 14px; text-align: center; margin-bottom: 16px; box-sizing: border-box;">
             选择相册图片
             <input type="file" accept="image/*" id="setting-bg-file" style="display: none;">
           </label>
 
           <label style="font-size:14px; font-weight:600; margin-bottom:8px; display:block; color:#333;">天气图标</label>
-          <label class="setting-btn" style="display: block; width: 100%; padding: 12px; border-radius: 10px; background: #f0f2f5; color: #1a1a1a; border: 1px solid #d0d5dd; cursor: pointer; font-size: 14px; text-align: center; margin-bottom: 16px;">
+          <label class="setting-btn" style="display: block; width: 100%; padding: 12px; border-radius: 10px; background: #f0f2f5; color: #1a1a1a; border: 1px solid #d0d5dd; cursor: pointer; font-size: 14px; text-align: center; margin-bottom: 16px; box-sizing: border-box;">
             选择相册图片
             <input type="file" accept="image/*" id="setting-icon-weather" style="display: none;">
           </label>
           
           <label style="font-size:14px; font-weight:600; margin-bottom:8px; display:block; color:#333;">地图图标</label>
-          <label class="setting-btn" style="display: block; width: 100%; padding: 12px; border-radius: 10px; background: #f0f2f5; color: #1a1a1a; border: 1px solid #d0d5dd; cursor: pointer; font-size: 14px; text-align: center; margin-bottom: 16px;">
+          <label class="setting-btn" style="display: block; width: 100%; padding: 12px; border-radius: 10px; background: #f0f2f5; color: #1a1a1a; border: 1px solid #d0d5dd; cursor: pointer; font-size: 14px; text-align: center; margin-bottom: 16px; box-sizing: border-box;">
             选择相册图片
             <input type="file" accept="image/*" id="setting-icon-map" style="display: none;">
           </label>
           
           <label style="font-size:14px; font-weight:600; margin-bottom:8px; display:block; color:#333;">设置图标</label>
-          <label class="setting-btn" style="display: block; width: 100%; padding: 12px; border-radius: 10px; background: #f0f2f5; color: #1a1a1a; border: 1px solid #d0d5dd; cursor: pointer; font-size: 14px; text-align: center; margin-bottom: 16px;">
+          <label class="setting-btn" style="display: block; width: 100%; padding: 12px; border-radius: 10px; background: #f0f2f5; color: #1a1a1a; border: 1px solid #d0d5dd; cursor: pointer; font-size: 14px; text-align: center; margin-bottom: 16px; box-sizing: border-box;">
             选择相册图片
             <input type="file" accept="image/*" id="setting-icon-settings" style="display: none;">
           </label>
@@ -63,10 +65,8 @@ export function initSettings() {
             if (!file) return;
             const reader = new FileReader();
             reader.onload = ev => {
-              // 背景图比例和手机屏幕一致，图标比例 1:1
               const ratioStr = targetType === 'background' ? `1/${phoneRatio.toFixed(3)}` : '1/1';
               
-              // 调用主脚本暴露出来的编辑器
               sillyPhone.openImageEditor(ev.target.result, ratioStr, (transform) => {
                 const { x, y, scale, editorWidth } = transform;
                 
