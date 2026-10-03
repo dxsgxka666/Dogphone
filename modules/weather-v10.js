@@ -1,4 +1,4 @@
-// weather-v9.js — 从角色卡/正文读时间、地点、天气
+// weather-v10.js — 从角色卡/正文读时间、地点、天气
 // 依赖：window.sillyPhone（小狗手机主加载器已注册）
 
 (function () {
