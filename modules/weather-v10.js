@@ -1,4 +1,4 @@
-// weather-v9.js — 从角色卡/正文读时间、地点、天气 + 24小时 + 日历
+// weather-v10.js — 增强读取角色卡 & 防误判版本
 (function () {
   'use strict';
 
@@ -35,56 +35,89 @@
         out.location = get('当前详细地点') || get('当前地点');
         break;
       }
-    } catch (e) {}
+    } catch (e) { console.warn('[天气] 读表失败', e); }
     return out;
   }
 
   /* ============================================================
-   * 二、数据源：最近 AI 消息正则解析
+   * 二、数据源：最近 AI 消息正则解析（含双重兜底）
    * ============================================================ */
   const WEATHER_WORDS = [
     '雷阵雨','暴雨','大雨','中雨','小雨','阵雨','雨夹雪',
     '大雪','中雪','小雪','暴雪',
-    '台风','冰雹','沙尘','扬沙','霾','雾','大风','晴','多云','阴',
-    '温暖','炎热','寒冷','凉爽'
-  ];
+    '台风','冰雹','沙尘','扬沙','霾','雾','大风','晴','多云','阴'
+  ]; // 移除了"温暖"、"炎热"、"寒冷"、"凉爽"，防止误匹配正文里的形容词
+
   function parseFromMessages() {
     const out = { time: '', location: '', weather: '', temp: '' };
+    let msgs = [];
+    
+    // 尝试 1: TavernHelper 接口
     try {
       const th = (window.parent && window.parent.TavernHelper) || window.TavernHelper;
-      if (!th || typeof th.getChatMessages !== 'function') return out;
-      const lastId = (typeof th.getLastMessageId === 'function') ? th.getLastMessageId() : -1;
-      if (typeof lastId !== 'number' || lastId < 0) return out;
-      const startId = Math.max(0, lastId - 25);
-      const msgs = th.getChatMessages(`${startId}-${lastId}`, { role: 'assistant' }) || [];
-      for (let i = msgs.length - 1; i >= 0; i--) {
-        const text = String(msgs[i] && msgs[i].message || '');
-        if (!text) continue;
-        if (!out.time) {
-          const t1 = text.match(/(\d{4})\s*[年\-\/\.]\s*(\d{1,2})\s*[月\-\/\.]\s*(\d{1,2})\s*[日号]?\s*(\d{1,2})[:：](\d{2})/);
-          if (t1) out.time = `${t1[1]}年${+t1[2]}月${+t1[3]}日 ${t1[4].padStart(2,'0')}:${t1[5]}`;
-          else {
-            const t2 = text.match(/(\d{4})\s*[年\-\/\.]\s*(\d{1,2})\s*[月\-\/\.]\s*(\d{1,2})\s*[日号]?/);
-            if (t2) out.time = `${t2[1]}年${+t2[2]}月${+t2[3]}日`;
-          }
+      if (th && typeof th.getChatMessages === 'function') {
+        const lastId = (typeof th.getLastMessageId === 'function') ? th.getLastMessageId() : -1;
+        if (typeof lastId === 'number' && lastId >= 0) {
+          const startId = Math.max(0, lastId - 50); // 扩大范围到 50 条
+          msgs = th.getChatMessages(`${startId}-${lastId}`, { role: 'assistant' }) || [];
         }
-        if (!out.weather) for (const w of WEATHER_WORDS) if (text.includes(w)) { out.weather = w; break; }
-        if (!out.temp) {
-          const tm = text.match(/(-?\d{1,2})\s*(?:°|℃|度)/);
-          if (tm) { const n = parseInt(tm[1], 10); if (n > -40 && n < 60) out.temp = n + '°'; }
-        }
-        if (!out.location) {
-          const loc = text.match(/(?:在|来到|走进|位于|地点[:：]|当前地点[:：])\s*([\u4e00-\u9fa5]{2,12}(?:市|区|县|镇|村|路|街|室|间|厅|房|府|院|馆|楼|店|山|河|湖|海|岛|林|园|桥|巷|门|站|场|咖啡馆|餐厅|酒吧|公寓|别墅|学校|医院))/);
-          if (loc) out.location = loc[1];
-        }
-        if (out.time && out.weather && out.temp && out.location) break;
       }
-    } catch (e) {}
+    } catch (e) { console.warn('[天气] TavernHelper 读取失败，尝试兜底方案', e); }
+
+    // 尝试 2: SillyTavern 原生上下文兜底
+    if (!msgs || msgs.length === 0) {
+      try {
+        const ctx = (window.parent && window.parent.SillyTavern) ? window.parent.SillyTavern.getContext() : (window.SillyTavern ? window.SillyTavern.getContext() : null);
+        if (ctx && Array.isArray(ctx.chat)) {
+          const allMsgs = ctx.chat.filter(m => !m.is_user);
+          msgs = allMsgs.slice(-50).map(m => ({ message: m.mes }));
+        }
+      } catch (e) { console.warn('[天气] SillyTavern 兜底读取也失败', e); }
+    }
+
+    if (!msgs || !msgs.length) return out;
+
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const text = String(msgs[i] && msgs[i].message || '');
+      if (!text) continue;
+
+      // --- 时间 ---
+      if (!out.time) {
+        const t1 = text.match(/(\d{4})\s*[年\-\/\.]\s*(\d{1,2})\s*[月\-\/\.]\s*(\d{1,2})\s*[日号]?\s*(\d{1,2})[:：](\d{2})/);
+        if (t1) {
+          out.time = `${t1[1]}年${+t1[2]}月${+t1[3]}日 ${t1[4].padStart(2,'0')}:${t1[5]}`;
+        } else {
+          const t2 = text.match(/(\d{4})\s*[年\-\/\.]\s*(\d{1,2})\s*[月\-\/\.]\s*(\d{1,2})\s*[日号]?/);
+          if (t2) out.time = `${t2[1]}年${+t2[2]}月${+t2[3]}日`;
+        }
+      }
+
+      // --- 天气 ---
+      if (!out.weather) {
+        for (const w of WEATHER_WORDS) {
+          if (text.includes(w)) { out.weather = w; break; }
+        }
+      }
+
+      // --- 温度 ---
+      if (!out.temp) {
+        const tm = text.match(/(-?\d{1,2})\s*(?:°|℃|度)/);
+        if (tm) { const n = parseInt(tm[1], 10); if (n > -40 && n < 60) out.temp = n + '°'; }
+      }
+
+      // --- 地点（增强版正则，支持室内场景） ---
+      if (!out.location) {
+        const loc = text.match(/(?:在|来到|走进|位于|地点[:：]|当前地点[:：])\s*([\u4e00-\u9fa5]{2,15}(?:市|区|县|镇|村|路|街|室|间|厅|房|府|院|馆|楼|店|山|河|湖|海|岛|林|园|桥|巷|门|站|场|咖啡馆|餐厅|酒吧|公寓|别墅|学校|医院|浴室|卧室|客厅|厨房|阳台))/);
+        if (loc) out.location = loc[1];
+      }
+
+      if (out.time && out.weather && out.temp && out.location) break;
+    }
     return out;
   }
 
   /* ============================================================
-   * 三、天气映射
+   * 三、天气映射（移除了模糊词汇的默认映射）
    * ============================================================ */
   const WEATHER_MAP = [
     { key: '雷阵雨', emoji: '⛈️', label: '雷阵雨', bg: 'linear-gradient(135deg,#4A4A6A,#7A6A8A)', temp: 22 },
@@ -107,13 +140,16 @@
     { key: '大风',   emoji: '💨', label: '大风',   bg: 'linear-gradient(135deg,#A8BCC8,#D0DDE5)', temp: 17 },
     { key: '晴',     emoji: '☀️', label: '晴朗',   bg: 'linear-gradient(135deg,#87CEEB,#FFD580)', temp: 24 },
     { key: '多云',   emoji: '⛅', label: '多云',   bg: 'linear-gradient(135deg,#A8C8E8,#D5DCE5)', temp: 22 },
-    { key: '阴',     emoji: '☁️', label: '阴',     bg: 'linear-gradient(135deg,#9CA3AF,#C7CCD1)', temp: 20 },
-    { key: '温暖',   emoji: '🌤️', label: '温暖',   bg: 'linear-gradient(135deg,#FFD580,#FFA76B)', temp: 25 },
-    { key: '炎热',   emoji: '🔥', label: '炎热',   bg: 'linear-gradient(135deg,#FF9A76,#FF6F61)', temp: 35 },
-    { key: '寒冷',   emoji: '🥶', label: '寒冷',   bg: 'linear-gradient(135deg,#7FB8D8,#B0D4E8)', temp: 3 },
-    { key: '凉爽',   emoji: '🌤️', label: '凉爽',   bg: 'linear-gradient(135deg,#A8D8C8,#D0E8E0)', temp: 18 }
+    { key: '阴',     emoji: '☁️', label: '阴',     bg: 'linear-gradient(135deg,#9CA3AF,#C7CCD1)', temp: 20 }
   ];
-  const pickWeather = (raw) => WEATHER_MAP.find(w => raw && raw.includes(w.key)) || WEATHER_MAP.find(w => w.key === '多云');
+  
+  const UNKNOWN_WEATHER = { key: '', emoji: '❓', label: '未知', bg: 'linear-gradient(135deg,#9CA3AF,#C7CCD1)', temp: 22 };
+
+  const pickWeather = (raw) => {
+    if (!raw) return UNKNOWN_WEATHER;
+    return WEATHER_MAP.find(w => raw.includes(w.key)) || UNKNOWN_WEATHER;
+  };
+  
   const hashOf = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0); };
 
   /* ============================================================
@@ -124,9 +160,10 @@
     const r = {
       year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate(),
       weekday: now.getDay(), hour: now.getHours(), minute: now.getMinutes(),
-      valid: false
+      valid: false, isRealTime: true
     };
     if (!timeStr) return r;
+
     const m = String(timeStr).match(/(\d{4})\D*?(\d{1,2})\D*?(\d{1,2})(?:\D*?(\d{1,2})\D*?(\d{2}))?/);
     if (m) {
       r.year = +m[1]; r.month = +m[2]; r.day = +m[3];
@@ -134,6 +171,7 @@
       if (m[5] != null && m[5] !== '') r.minute = +m[5];
       r.weekday = new Date(r.year, r.month - 1, r.day).getDay();
       r.valid = true;
+      r.isRealTime = false;
     }
     return r;
   }
@@ -145,54 +183,56 @@
     const tbl = readGlobalTable();
     const msg = parseFromMessages();
     const time = tbl.time || msg.time || '';
-    const loc  = tbl.location || msg.location || '未知地点';
-    const rawW = msg.weather || '多云';
+    const loc  = tbl.location || msg.location || '';
+    const rawW = msg.weather || '';
     const w    = pickWeather(rawW);
-    const tempNum = msg.temp ? parseInt(msg.temp, 10) : w.temp;
+    const tempNum = msg.temp ? parseInt(msg.temp, 10) : (rawW ? w.temp : 22);
     const tempStr = tempNum + '°';
     const hi = tempNum + Math.round(2 + (hashOf(rawW) % 4));
     const lo = tempNum - Math.round(3 + (hashOf(loc) % 4));
     const isRain = /雨/.test(rawW), isSnow = /雪/.test(rawW);
-    const isSunny = /晴/.test(rawW) || rawW === '温暖' || rawW === '炎热';
+    const isSunny = /晴/.test(rawW);
+    
     const humidity = isRain ? 75 + (hashOf(loc) % 20) : isSnow ? 60 + (hashOf(loc) % 15) : isSunny ? 30 + (hashOf(loc) % 15) : 55 + (hashOf(loc) % 15);
     const wind = 3 + (hashOf(loc + 'w') % 12);
     const uv   = isSunny ? 5 + (hashOf(loc + 'u') % 4) : /云|阴/.test(rawW) ? 2 + (hashOf(loc + 'u') % 2) : 1;
+    
     const trend = [
       { tag: '上午', emoji: isRain ? '🌧️' : isSunny ? '☀️' : '⛅', lo: tempNum - 1, hi: tempNum + 2 },
       { tag: '下午', emoji: isRain ? '🌧️' : isSnow ? '🌨️' : isSunny ? '☀️' : '⛅', lo: tempNum, hi: tempNum + 3 },
       { tag: '晚上', emoji: isSnow ? '🌨️' : '🌙', lo: tempNum - 2, hi: tempNum + 1 }
     ];
-    return { time, loc, rawW, w, tempStr, tempNum, hi, lo, humidity, wind, uv, trend, desc: buildDesc(rawW, tempNum, isRain, isSnow, isSunny) };
-  }
-  function buildDesc(w, t, isRain, isSnow, isSunny) {
-    if (isRain) return `外面正在下${w}，记得带伞，路面湿滑小心行走。`;
-    if (isSnow) return `雪还在下，出门注意保暖，路上可能结冰。`;
-    if (w === '雾' || w === '霾') return `能见度较低，出门注意安全，尽量少在户外逗留。`;
-    if (w === '沙尘' || w === '扬沙') return `空气中浮尘较多，外出建议戴口罩。`;
-    if (isSunny && t >= 30) return `阳光很烈，注意防晒补水，避免长时间暴晒。`;
-    if (isSunny) return `阳光正好，微风不燥，愿你有美好的一天。`;
-    if (w === '大风' || w === '台风') return `风有点大，外出留意高空坠物和沿途广告牌。`;
-    return `天气还算舒服，适合出门走走。`;
+
+    let desc = '天气信息未从剧情中获取。';
+    if (isRain) desc = `外面正在下${rawW}，记得带伞，路面湿滑小心行走。`;
+    else if (isSnow) desc = `雪还在下，出门注意保暖，路上可能结冰。`;
+    else if (rawW === '雾' || rawW === '霾') desc = `能见度较低，出门注意安全，尽量少在户外逗留。`;
+    else if (rawW === '沙尘' || rawW === '扬沙') desc = `空气中浮尘较多，外出建议戴口罩。`;
+    else if (isSunny && tempNum >= 30) desc = `阳光很烈，注意防晒补水，避免长时间暴晒。`;
+    else if (isSunny) desc = `阳光正好，微风不燥，愿你有美好的一天。`;
+    else if (rawW === '大风' || rawW === '台风') desc = `风有点大，外出留意高空坠物和沿途广告牌。`;
+    else if (rawW) desc = `天气还算舒服，适合出门走走。`;
+    
+    return { time, loc, rawW, w, tempStr, tempNum, hi, lo, humidity, wind, uv, trend, desc };
   }
 
   // 24小时天气
   function build24h(d) {
     const dateInfo = parseDateInfo(d.time);
     const baseTemp = d.tempNum;
-    const raw = d.rawW;
+    const raw = d.rawW || '多云';
     const arr = [];
     for (let i = 0; i < 24; i++) {
       const h = (dateInfo.hour + i) % 24;
       const hh = String(h).padStart(2, '0') + ':00';
       const hash = hashOf('24h-' + dateInfo.year + dateInfo.month + dateInfo.day + h);
-      // 温度曲线：凌晨最低、下午最高
       const curve = Math.sin((h - 6) / 24 * Math.PI * 2) * 4;
       const temp = Math.round(baseTemp + curve + (hash % 3 - 1));
       const isNight = h < 6 || h >= 19;
       let emoji;
-      if (/雨/.test(raw)) emoji = isNight ? '🌧️' : '🌧️';
+      if (/雨/.test(raw)) emoji = '🌧️';
       else if (/雪/.test(raw)) emoji = '🌨️';
-      else if (/晴/.test(raw) || raw === '温暖' || raw === '炎热') emoji = isNight ? '🌙' : '☀️';
+      else if (/晴/.test(raw)) emoji = isNight ? '🌙' : '☀️';
       else if (isNight) emoji = '🌙';
       else emoji = '⛅';
       arr.push({ h, hh, temp, emoji, isNow: i === 0 });
@@ -204,7 +244,6 @@
   function buildCalendar(dateInfo, view) {
     const y = dateInfo.year, m = dateInfo.month, today = dateInfo.day;
     if (view === 'day') {
-      // 本周：从周日到周六
       const weekdays = ['日','一','二','三','四','五','六'];
       const base = new Date(y, m - 1, today);
       const sunday = new Date(base); sunday.setDate(base.getDate() - base.getDay());
@@ -216,19 +255,14 @@
       return { kind: 'week', days };
     }
     if (view === 'month') {
-      // 当前月网格 + 下月预览
       const firstDay = new Date(y, m - 1, 1);
       const firstWeekday = firstDay.getDay();
       const daysInMonth = new Date(y, m, 0).getDate();
       const daysInPrev = new Date(y, m - 1, 0).getDate();
       const cells = [];
-      // 上月补位
       for (let i = firstWeekday - 1; i >= 0; i--) cells.push({ num: daysInPrev - i, muted: true });
-      // 本月
       for (let d = 1; d <= daysInMonth; d++) cells.push({ num: d, muted: false, isToday: d === today });
-      // 下月补位（填满 6 行）
       while (cells.length % 7 !== 0) cells.push({ num: cells.length - firstWeekday - daysInMonth + 1, muted: true });
-      // 下月
       const nextM = m === 12 ? 1 : m + 1;
       const nextY = m === 12 ? y + 1 : y;
       const nextDaysInMonth = new Date(nextY, nextM, 0).getDate();
@@ -238,7 +272,6 @@
       for (let d = 1; d <= nextDaysInMonth; d++) nextCells.push({ num: d, muted: false });
       return { kind: 'month', cells, next: { y: nextY, m: nextM, cells: nextCells } };
     }
-    // year：12 个小卡片
     const months = [];
     for (let mm = 1; mm <= 12; mm++) {
       const dim = new Date(y, mm, 0).getDate();
@@ -269,7 +302,6 @@
       .wx-body { flex:1; min-height:0; overflow-y:auto; padding:14px 14px 76px; scrollbar-width:none; }
       .wx-body::-webkit-scrollbar { display:none; }
 
-      /* 天气卡片 */
       .wx-card { border-radius:20px; padding:20px; color:#fff; box-shadow:0 8px 24px rgba(60,90,140,.18); position:relative; overflow:hidden; }
       .wx-card-top { display:flex; justify-content:space-between; align-items:flex-start; }
       .wx-city { font-size:16px; font-weight:600; opacity:.95; }
@@ -293,7 +325,6 @@
       .wx-tcell .ico { font-size:24px; margin:6px 0; }
       .wx-tcell .rng { font-size:12px; }
 
-      /* 24小时 */
       .wx-24h { display:flex; overflow-x:auto; gap:8px; padding:2px; scrollbar-width:none; }
       .wx-24h::-webkit-scrollbar { display:none; }
       .wx-24h-cell { flex:none; width:56px; text-align:center; padding:10px 4px; background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(60,90,140,.06); }
@@ -303,10 +334,8 @@
       .wx-24h-cell.now { background:linear-gradient(180deg,#FFE0EC,#FFC7DA); }
       .wx-24h-cell.now .t { color:#B23D6A; font-weight:600; }
       .wx-24h-cell.now .v { color:#B23D6A; }
-
       .wx-foot { text-align:center; font-size:11px; color:#9aa5bd; padding:14px 0 6px; }
 
-      /* ==================== 日历 ==================== */
       .cal-wrap { position:absolute; inset:0; top:50px; bottom:0; overflow-y:auto; padding:14px 14px 76px; background:linear-gradient(180deg,#FFF5F8 0%,#F2F7FF 100%); display:none; scrollbar-width:none; }
       .cal-wrap::-webkit-scrollbar { display:none; }
       .cal-wrap.active { display:block; }
@@ -314,7 +343,6 @@
       .cal-vbtn { border:none; background:transparent; padding:4px 10px; font-size:12px; color:#A08F9B; border-radius:8px; cursor:pointer; font-family:inherit; }
       .cal-vbtn.on { background:#fff; color:#FF6B8F; font-weight:600; box-shadow:0 1px 3px rgba(255,107,143,.2); }
 
-      /* 周视图 */
       .cal-week-card { background:#fff; border-radius:18px; padding:16px 12px 14px; margin-bottom:14px; box-shadow:0 4px 16px rgba(255,140,175,.08); }
       .cal-week-top { display:flex; justify-content:space-between; align-items:center; padding:0 4px 10px; }
       .cal-week-title { font-size:13px; font-weight:600; color:#5C4D5C; }
@@ -327,7 +355,6 @@
       .cal-day.today .n { color:rgba(255,255,255,.85); }
       .cal-day.today .d { color:#fff; }
 
-      /* 今日日程 */
       .cal-today-card { background:#fff; border-radius:18px; padding:16px; box-shadow:0 4px 16px rgba(255,140,175,.08); }
       .cal-today-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
       .cal-today-title { font-size:15px; font-weight:700; color:#3B2E38; }
@@ -337,7 +364,6 @@
       .cal-empty { text-align:center; padding:28px 12px; color:#B8A8B4; font-size:13px; line-height:1.7; }
       .cal-empty .emoji { font-size:36px; display:block; margin-bottom:8px; }
 
-      /* 月视图 */
       .cal-month-card { background:#fff; border-radius:18px; padding:14px 8px; margin-bottom:14px; box-shadow:0 4px 16px rgba(255,140,175,.08); }
       .cal-month-head { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; padding:0 4px 8px; }
       .cal-month-head span { text-align:center; font-size:11.5px; color:#A08F9B; font-weight:600; }
@@ -346,10 +372,8 @@
       .cal-cell { text-align:center; font-size:13px; padding:7px 0; border-radius:10px; color:#3B2E38; font-weight:500; }
       .cal-cell.muted { color:#D6C9D1; }
       .cal-cell.today { background:linear-gradient(180deg,#FFB0C8,#FF7FA0); color:#fff; font-weight:700; box-shadow:0 3px 8px rgba(255,107,143,.3); }
-
       .cal-next-title { font-size:12px; color:#A08F9B; font-weight:600; padding:2px 6px 8px; }
 
-      /* 年视图 */
       .cal-year-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
       .cal-mini { background:#fff; border-radius:12px; padding:8px 5px 9px; box-shadow:0 3px 10px rgba(255,140,175,.06); }
       .cal-mini-title { font-size:11.5px; color:#FF6B8F; font-weight:700; text-align:center; margin-bottom:5px; }
@@ -360,7 +384,6 @@
       .cal-mini-head { display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:2px; }
       .cal-mini-head span { font-size:6.5px; text-align:center; color:#C9B8C4; }
 
-      /* ==================== 底部 Tab ==================== */
       .wx-tabbar { position:absolute; left:0; right:0; bottom:0; height:60px; background:rgba(255,255,255,.96); backdrop-filter:blur(20px); border-top:1px solid #EFF2F7; display:flex; z-index:5; padding-bottom:env(safe-area-inset-bottom,0); }
       .wx-tab { flex:1; border:none; background:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; cursor:pointer; font-family:inherit; color:#A8B0C4; font-size:11px; padding:0; }
       .wx-tab svg { width:24px; height:24px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
@@ -383,10 +406,9 @@
   let viewEl = null;
   let refreshTimer = null;
   let thBound = false;
-  let currentTab = 'weather';   // 'weather' | 'calendar'
-  let calendarView = 'day';     // 'day' | 'month' | 'year'
+  let currentTab = 'weather';
+  let calendarView = 'day';
 
-  /* ----- 天气视图 ----- */
   function renderWeatherBody(d) {
     const h24 = build24h(d);
     return `
@@ -394,8 +416,8 @@
         <div class="wx-card" style="background:${d.w.bg}">
           <div class="wx-card-top">
             <div class="wx-city">
-              ${esc(d.loc)}
-              <small>${d.time ? esc(d.time) : '时间未获取'}</small>
+              ${esc(d.loc || '未知地点')}
+              <small>${d.time ? esc(d.time) : '时间未获取（基于本地时间）'}</small>
             </div>
             <div class="wx-wlabel">${esc(d.w.label)}</div>
           </div>
@@ -442,14 +464,12 @@
       </div>`;
   }
 
-  /* ----- 日历视图 ----- */
   function renderCalendarBody(d) {
     const info = parseDateInfo(d.time);
     const cal = buildCalendar(info, calendarView);
     let inner = '';
 
     if (cal.kind === 'week') {
-      const weekdays = ['日','一','二','三','四','五','六'];
       inner = `
         <div class="cal-week-card">
           <div class="cal-week-top">
@@ -514,13 +534,11 @@
     return `<div class="cal-wrap active" data-cal-body>${inner}</div>`;
   }
 
-  /* ----- 主渲染 ----- */
   function render() {
     if (!viewEl || !viewEl.classList.contains('active')) return;
     const d = buildWeatherData();
     const info = parseDateInfo(d.time);
 
-    // Head 不同
     let headTitle, headRight;
     if (currentTab === 'weather') {
       headTitle = '天气';
@@ -537,7 +555,6 @@
         </div>`;
     }
 
-    // Body
     const weatherBody = renderWeatherBody(d);
     const calBody = renderCalendarBody(d);
 
@@ -559,7 +576,6 @@
       </div>
     `;
 
-    // 事件绑定
     viewEl.querySelector('[data-wx-back]').addEventListener('click', close);
     viewEl.querySelectorAll('[data-wx-tab]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -578,7 +594,6 @@
       });
     });
 
-    // 24小时滚动到"现在"那一格
     const nowCell = viewEl.querySelector('.wx-24h .wx-24h-cell.now');
     if (nowCell) nowCell.scrollIntoView({ block: 'nearest', inline: 'center' });
   }
@@ -627,5 +642,5 @@
     onOpen: open
   });
 
-  console.log('[天气] weather-v9 已就绪（24小时 + 日历）');
+  console.log('[天气] weather-v9 已就绪（增强读取 + 防误判）');
 })();
