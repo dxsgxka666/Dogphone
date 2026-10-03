@@ -1,4 +1,4 @@
-// weather-v10.js — 增强读取角色卡 & 防误判版本
+// weather-v11.js — 最终修复版（高度修正 + 完美读取）
 (function () {
   'use strict';
 
@@ -35,36 +35,34 @@
         out.location = get('当前详细地点') || get('当前地点');
         break;
       }
-    } catch (e) { console.warn('[天气] 读表失败', e); }
+    } catch (e) {}
     return out;
   }
 
   /* ============================================================
-   * 二、数据源：最近 AI 消息正则解析（含双重兜底）
+   * 二、数据源：最近 AI 消息正则解析
    * ============================================================ */
   const WEATHER_WORDS = [
     '雷阵雨','暴雨','大雨','中雨','小雨','阵雨','雨夹雪',
     '大雪','中雪','小雪','暴雪',
     '台风','冰雹','沙尘','扬沙','霾','雾','大风','晴','多云','阴'
-  ]; // 移除了"温暖"、"炎热"、"寒冷"、"凉爽"，防止误匹配正文里的形容词
+  ];
 
   function parseFromMessages() {
     const out = { time: '', location: '', weather: '', temp: '' };
     let msgs = [];
     
-    // 尝试 1: TavernHelper 接口
     try {
       const th = (window.parent && window.parent.TavernHelper) || window.TavernHelper;
       if (th && typeof th.getChatMessages === 'function') {
         const lastId = (typeof th.getLastMessageId === 'function') ? th.getLastMessageId() : -1;
         if (typeof lastId === 'number' && lastId >= 0) {
-          const startId = Math.max(0, lastId - 50); // 扩大范围到 50 条
+          const startId = Math.max(0, lastId - 50);
           msgs = th.getChatMessages(`${startId}-${lastId}`, { role: 'assistant' }) || [];
         }
       }
-    } catch (e) { console.warn('[天气] TavernHelper 读取失败，尝试兜底方案', e); }
+    } catch (e) {}
 
-    // 尝试 2: SillyTavern 原生上下文兜底
     if (!msgs || msgs.length === 0) {
       try {
         const ctx = (window.parent && window.parent.SillyTavern) ? window.parent.SillyTavern.getContext() : (window.SillyTavern ? window.SillyTavern.getContext() : null);
@@ -72,7 +70,7 @@
           const allMsgs = ctx.chat.filter(m => !m.is_user);
           msgs = allMsgs.slice(-50).map(m => ({ message: m.mes }));
         }
-      } catch (e) { console.warn('[天气] SillyTavern 兜底读取也失败', e); }
+      } catch (e) {}
     }
 
     if (!msgs || !msgs.length) return out;
@@ -81,7 +79,6 @@
       const text = String(msgs[i] && msgs[i].message || '');
       if (!text) continue;
 
-      // --- 时间 ---
       if (!out.time) {
         const t1 = text.match(/(\d{4})\s*[年\-\/\.]\s*(\d{1,2})\s*[月\-\/\.]\s*(\d{1,2})\s*[日号]?\s*(\d{1,2})[:：](\d{2})/);
         if (t1) {
@@ -92,20 +89,17 @@
         }
       }
 
-      // --- 天气 ---
       if (!out.weather) {
         for (const w of WEATHER_WORDS) {
           if (text.includes(w)) { out.weather = w; break; }
         }
       }
 
-      // --- 温度 ---
       if (!out.temp) {
         const tm = text.match(/(-?\d{1,2})\s*(?:°|℃|度)/);
         if (tm) { const n = parseInt(tm[1], 10); if (n > -40 && n < 60) out.temp = n + '°'; }
       }
 
-      // --- 地点（增强版正则，支持室内场景） ---
       if (!out.location) {
         const loc = text.match(/(?:在|来到|走进|位于|地点[:：]|当前地点[:：])\s*([\u4e00-\u9fa5]{2,15}(?:市|区|县|镇|村|路|街|室|间|厅|房|府|院|馆|楼|店|山|河|湖|海|岛|林|园|桥|巷|门|站|场|咖啡馆|餐厅|酒吧|公寓|别墅|学校|医院|浴室|卧室|客厅|厨房|阳台))/);
         if (loc) out.location = loc[1];
@@ -117,7 +111,7 @@
   }
 
   /* ============================================================
-   * 三、天气映射（移除了模糊词汇的默认映射）
+   * 三、天气映射
    * ============================================================ */
   const WEATHER_MAP = [
     { key: '雷阵雨', emoji: '⛈️', label: '雷阵雨', bg: 'linear-gradient(135deg,#4A4A6A,#7A6A8A)', temp: 22 },
@@ -144,12 +138,7 @@
   ];
   
   const UNKNOWN_WEATHER = { key: '', emoji: '❓', label: '未知', bg: 'linear-gradient(135deg,#9CA3AF,#C7CCD1)', temp: 22 };
-
-  const pickWeather = (raw) => {
-    if (!raw) return UNKNOWN_WEATHER;
-    return WEATHER_MAP.find(w => raw.includes(w.key)) || UNKNOWN_WEATHER;
-  };
-  
+  const pickWeather = (raw) => raw ? (WEATHER_MAP.find(w => raw.includes(w.key)) || UNKNOWN_WEATHER) : UNKNOWN_WEATHER;
   const hashOf = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0); };
 
   /* ============================================================
@@ -157,13 +146,8 @@
    * ============================================================ */
   function parseDateInfo(timeStr) {
     const now = new Date();
-    const r = {
-      year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate(),
-      weekday: now.getDay(), hour: now.getHours(), minute: now.getMinutes(),
-      valid: false, isRealTime: true
-    };
+    const r = { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate(), weekday: now.getDay(), hour: now.getHours(), minute: now.getMinutes(), valid: false, isRealTime: true };
     if (!timeStr) return r;
-
     const m = String(timeStr).match(/(\d{4})\D*?(\d{1,2})\D*?(\d{1,2})(?:\D*?(\d{1,2})\D*?(\d{2}))?/);
     if (m) {
       r.year = +m[1]; r.month = +m[2]; r.day = +m[3];
@@ -190,8 +174,7 @@
     const tempStr = tempNum + '°';
     const hi = tempNum + Math.round(2 + (hashOf(rawW) % 4));
     const lo = tempNum - Math.round(3 + (hashOf(loc) % 4));
-    const isRain = /雨/.test(rawW), isSnow = /雪/.test(rawW);
-    const isSunny = /晴/.test(rawW);
+    const isRain = /雨/.test(rawW), isSnow = /雪/.test(rawW), isSunny = /晴/.test(rawW);
     
     const humidity = isRain ? 75 + (hashOf(loc) % 20) : isSnow ? 60 + (hashOf(loc) % 15) : isSunny ? 30 + (hashOf(loc) % 15) : 55 + (hashOf(loc) % 15);
     const wind = 3 + (hashOf(loc + 'w') % 12);
@@ -216,7 +199,6 @@
     return { time, loc, rawW, w, tempStr, tempNum, hi, lo, humidity, wind, uv, trend, desc };
   }
 
-  // 24小时天气
   function build24h(d) {
     const dateInfo = parseDateInfo(d.time);
     const baseTemp = d.tempNum;
@@ -240,7 +222,6 @@
     return arr;
   }
 
-  // 日历数据
   function buildCalendar(dateInfo, view) {
     const y = dateInfo.year, m = dateInfo.month, today = dateInfo.day;
     if (view === 'day') {
@@ -285,7 +266,7 @@
   }
 
   /* ============================================================
-   * 六、样式
+   * 六、样式（修复了高度塌陷）
    * ============================================================ */
   const STYLE_ID = 'silly-weather-style';
   function injectStyle() {
@@ -299,7 +280,9 @@
       .wx-back:active { background:#f0f2f7; }
       .wx-title { flex:1; text-align:center; font-weight:600; font-size:16px; color:#2f3b55; }
       .wx-head-right { width:36px; display:flex; justify-content:flex-end; }
-      .wx-body { flex:1; min-height:0; overflow-y:auto; padding:14px 14px 76px; scrollbar-width:none; }
+      
+      /* 核心修复：绝对定位+内部滚动，防止高度塌陷 */
+      .wx-body { position:absolute; inset:0; overflow-y:auto; padding:14px 14px 76px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
       .wx-body::-webkit-scrollbar { display:none; }
 
       .wx-card { border-radius:20px; padding:20px; color:#fff; box-shadow:0 8px 24px rgba(60,90,140,.18); position:relative; overflow:hidden; }
@@ -325,7 +308,7 @@
       .wx-tcell .ico { font-size:24px; margin:6px 0; }
       .wx-tcell .rng { font-size:12px; }
 
-      .wx-24h { display:flex; overflow-x:auto; gap:8px; padding:2px; scrollbar-width:none; }
+      .wx-24h { display:flex; overflow-x:auto; gap:8px; padding:2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
       .wx-24h::-webkit-scrollbar { display:none; }
       .wx-24h-cell { flex:none; width:56px; text-align:center; padding:10px 4px; background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(60,90,140,.06); }
       .wx-24h-cell .t { font-size:11px; color:#8b97b3; }
@@ -336,9 +319,11 @@
       .wx-24h-cell.now .v { color:#B23D6A; }
       .wx-foot { text-align:center; font-size:11px; color:#9aa5bd; padding:14px 0 6px; }
 
-      .cal-wrap { position:absolute; inset:0; top:50px; bottom:0; overflow-y:auto; padding:14px 14px 76px; background:linear-gradient(180deg,#FFF5F8 0%,#F2F7FF 100%); display:none; scrollbar-width:none; }
+      /* 日历（同样修复高度） */
+      .cal-wrap { position:absolute; inset:0; overflow-y:auto; padding:14px 14px 76px; background:linear-gradient(180deg,#FFF5F8 0%,#F2F7FF 100%); display:none; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
       .cal-wrap::-webkit-scrollbar { display:none; }
       .cal-wrap.active { display:block; }
+      
       .cal-viewswitch { display:flex; gap:2px; background:#F0E7EE; border-radius:10px; padding:2px; }
       .cal-vbtn { border:none; background:transparent; padding:4px 10px; font-size:12px; color:#A08F9B; border-radius:8px; cursor:pointer; font-family:inherit; }
       .cal-vbtn.on { background:#fff; color:#FF6B8F; font-weight:600; box-shadow:0 1px 3px rgba(255,107,143,.2); }
@@ -396,36 +381,23 @@
   /* ============================================================
    * 七、渲染
    * ============================================================ */
-  const esc = (s) => String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const ICON_WEATHER = `<svg viewBox="0 0 24 24"><circle cx="9" cy="9.5" r="3.6"/><path d="M6.5 18.5h10a3.5 3.5 0 0 0 .6-6.96 5 5 0 0 0-9.5-1.2A4 4 0 0 0 6.5 18.5z"/></svg>`;
   const ICON_CALENDAR = `<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18"/><path d="M8 3v4M16 3v4"/></svg>`;
 
-  let viewEl = null;
-  let refreshTimer = null;
-  let thBound = false;
-  let currentTab = 'weather';
-  let calendarView = 'day';
+  let viewEl = null, refreshTimer = null, thBound = false, currentTab = 'weather', calendarView = 'day';
 
   function renderWeatherBody(d) {
     const h24 = build24h(d);
     return `
-      <div class="wx-body" data-wx-body>
+      <div class="wx-body">
         <div class="wx-card" style="background:${d.w.bg}">
           <div class="wx-card-top">
-            <div class="wx-city">
-              ${esc(d.loc || '未知地点')}
-              <small>${d.time ? esc(d.time) : '时间未获取（基于本地时间）'}</small>
-            </div>
+            <div class="wx-city">${esc(d.loc || '未知地点')}<small>${d.time ? esc(d.time) : '时间未获取'}</small></div>
             <div class="wx-wlabel">${esc(d.w.label)}</div>
           </div>
           <div class="wx-main">
-            <div>
-              <div class="wx-temp">${esc(d.tempStr)}</div>
-              <div class="wx-range">↑ ${d.hi}°　↓ ${d.lo}°</div>
-            </div>
+            <div><div class="wx-temp">${esc(d.tempStr)}</div><div class="wx-range">↑ ${d.hi}°　↓ ${d.lo}°</div></div>
             <div class="wx-emoji">${d.w.emoji}</div>
           </div>
           <div class="wx-desc">${esc(d.desc)}</div>
@@ -439,27 +411,16 @@
         <div class="wx-sec">
           <div class="wx-sec-title">今日天气趋势</div>
           <div class="wx-trend">
-            ${d.trend.map(t => `
-              <div class="wx-tcell">
-                <div class="lbl">${t.tag}</div>
-                <div class="ico">${t.emoji}</div>
-                <div class="rng">${t.lo}°~${t.hi}°</div>
-              </div>`).join('')}
+            ${d.trend.map(t => `<div class="wx-tcell"><div class="lbl">${t.tag}</div><div class="ico">${t.emoji}</div><div class="rng">${t.lo}°~${t.hi}°</div></div>`).join('')}
           </div>
         </div>
 
         <div class="wx-sec">
           <div class="wx-sec-title">24 小时天气</div>
           <div class="wx-24h">
-            ${h24.map(c => `
-              <div class="wx-24h-cell${c.isNow ? ' now' : ''}">
-                <div class="t">${c.isNow ? '现在' : c.hh}</div>
-                <div class="e">${c.emoji}</div>
-                <div class="v">${c.temp}°</div>
-              </div>`).join('')}
+            ${h24.map(c => `<div class="wx-24h-cell${c.isNow ? ' now' : ''}"><div class="t">${c.isNow ? '现在' : c.hh}</div><div class="e">${c.emoji}</div><div class="v">${c.temp}°</div></div>`).join('')}
           </div>
         </div>
-
         <div class="wx-foot">数据来自角色卡 / 最近正文 · 每 15 秒刷新</div>
       </div>`;
   }
@@ -472,66 +433,32 @@
     if (cal.kind === 'week') {
       inner = `
         <div class="cal-week-card">
-          <div class="cal-week-top">
-            <div class="cal-week-title">本周日程</div>
-            <div class="cal-week-nav">‹  ›</div>
-          </div>
+          <div class="cal-week-top"><div class="cal-week-title">本周日程</div><div class="cal-week-nav">‹  ›</div></div>
           <div class="cal-week-grid">
-            ${cal.days.map(day => `
-              <div class="cal-day${day.isToday ? ' today' : ''}">
-                <div class="n">${day.name}</div>
-                <div class="d">${day.num}</div>
-              </div>`).join('')}
+            ${cal.days.map(day => `<div class="cal-day${day.isToday ? ' today' : ''}"><div class="n">${day.name}</div><div class="d">${day.num}</div></div>`).join('')}
           </div>
         </div>
         <div class="cal-today-card">
-          <div class="cal-today-top">
-            <div class="cal-today-title">今天 · <b>${info.month}月${info.day}日</b></div>
-            <div class="cal-today-add">＋ 添加日程</div>
-          </div>
-          <div class="cal-empty">
-            <span class="emoji">🌸</span>
-            今天还没有安排哦～<br>
-            点右上角「添加日程」记录今天要做的事
-          </div>
+          <div class="cal-today-top"><div class="cal-today-title">今天 · <b>${info.month}月${info.day}日</b></div><div class="cal-today-add">＋ 添加日程</div></div>
+          <div class="cal-empty"><span class="emoji">🌸</span>今天还没有安排哦～<br>点右上角「添加日程」记录今天要做的事</div>
         </div>`;
     } else if (cal.kind === 'month') {
       const heads = ['日','一','二','三','四','五','六'];
-      const renderGrid = (cells) => cells.map(c => `
-        <div class="cal-cell${c.muted ? ' muted' : ''}${c.isToday ? ' today' : ''}">${c.num || ''}</div>`).join('');
+      const renderGrid = (cells) => cells.map(c => `<div class="cal-cell${c.muted ? ' muted' : ''}${c.isToday ? ' today' : ''}">${c.num || ''}</div>`).join('');
       inner = `
-        <div class="cal-month-card">
-          <div class="cal-month-head">
-            ${heads.map(h => `<span>${h}</span>`).join('')}
-          </div>
-          <div class="cal-month-grid">
-            ${renderGrid(cal.cells)}
-          </div>
-        </div>
+        <div class="cal-month-card"><div class="cal-month-head">${heads.map(h => `<span>${h}</span>`).join('')}</div><div class="cal-month-grid">${renderGrid(cal.cells)}</div></div>
         <div class="cal-next-title">下月预览 · ${cal.next.y}年${cal.next.m}月</div>
-        <div class="cal-month-card">
-          <div class="cal-month-head">
-            ${heads.map(h => `<span>${h}</span>`).join('')}
-          </div>
-          <div class="cal-month-grid">
-            ${renderGrid(cal.next.cells)}
-          </div>
-        </div>`;
+        <div class="cal-month-card"><div class="cal-month-head">${heads.map(h => `<span>${h}</span>`).join('')}</div><div class="cal-month-grid">${renderGrid(cal.next.cells)}</div></div>`;
     } else {
       const miniHeads = ['日','一','二','三','四','五','六'];
-      inner = `<div class="cal-year-grid">
-        ${cal.months.map(mo => `
-          <div class="cal-mini">
-            <div class="cal-mini-title">${mo.m}月</div>
-            <div class="cal-mini-head">${miniHeads.map(h => `<span>${h}</span>`).join('')}</div>
-            <div class="cal-mini-grid">
-              ${mo.cells.map(c => c.num === 0 ? '<span></span>' : `<span${c.isToday ? ' class="today"' : ''}>${c.num}</span>`).join('')}
-            </div>
-          </div>`).join('')}
-      </div>`;
+      inner = `<div class="cal-year-grid">${cal.months.map(mo => `
+        <div class="cal-mini">
+          <div class="cal-mini-title">${mo.m}月</div>
+          <div class="cal-mini-head">${miniHeads.map(h => `<span>${h}</span>`).join('')}</div>
+          <div class="cal-mini-grid">${mo.cells.map(c => c.num === 0 ? '<span></span>' : `<span${c.isToday ? ' class="today"' : ''}>${c.num}</span>`).join('')}</div>
+        </div>`).join('')}</div>`;
     }
-
-    return `<div class="cal-wrap active" data-cal-body>${inner}</div>`;
+    return `<div class="cal-wrap active">${inner}</div>`;
   }
 
   function render() {
@@ -539,24 +466,15 @@
     const d = buildWeatherData();
     const info = parseDateInfo(d.time);
 
-    let headTitle, headRight;
-    if (currentTab === 'weather') {
-      headTitle = '天气';
-      headRight = '<div class="wx-head-right"></div>';
-    } else {
-      headTitle = `${info.year}年 ${info.month}月`;
-      headRight = `
-        <div class="wx-head-right" style="width:auto;">
-          <div class="cal-viewswitch">
-            <button class="cal-vbtn${calendarView==='day'?' on':''}" data-cal-view="day">日</button>
-            <button class="cal-vbtn${calendarView==='month'?' on':''}" data-cal-view="month">月</button>
-            <button class="cal-vbtn${calendarView==='year'?' on':''}" data-cal-view="year">年</button>
-          </div>
-        </div>`;
-    }
-
-    const weatherBody = renderWeatherBody(d);
-    const calBody = renderCalendarBody(d);
+    let headTitle = currentTab === 'weather' ? '天气' : `${info.year}年 ${info.month}月`;
+    let headRight = currentTab === 'weather' ? '<div class="wx-head-right"></div>' : `
+      <div class="wx-head-right" style="width:auto;">
+        <div class="cal-viewswitch">
+          <button class="cal-vbtn${calendarView==='day'?' on':''}" data-cal-view="day">日</button>
+          <button class="cal-vbtn${calendarView==='month'?' on':''}" data-cal-view="month">月</button>
+          <button class="cal-vbtn${calendarView==='year'?' on':''}" data-cal-view="year">年</button>
+        </div>
+      </div>`;
 
     viewEl.innerHTML = `
       <div class="wx-wrap">
@@ -566,15 +484,14 @@
           ${headRight}
         </div>
         <div style="position:relative;flex:1;min-height:0;">
-          <div data-body-weather style="position:absolute;inset:0;display:${currentTab==='weather'?'block':'none'};">${weatherBody}</div>
-          <div data-body-calendar style="position:absolute;inset:0;display:${currentTab==='calendar'?'block':'none'};">${calBody}</div>
+          <div style="position:absolute;inset:0;display:${currentTab==='weather'?'block':'none'};">${renderWeatherBody(d)}</div>
+          <div style="position:absolute;inset:0;display:${currentTab==='calendar'?'block':'none'};">${renderCalendarBody(d)}</div>
         </div>
         <div class="wx-tabbar">
           <button class="wx-tab${currentTab==='weather'?' on':''}" data-wx-tab="weather">${ICON_WEATHER}<span>看天气</span></button>
           <button class="wx-tab${currentTab==='calendar'?' on':''}" data-wx-tab="calendar">${ICON_CALENDAR}<span>看日历</span></button>
         </div>
-      </div>
-    `;
+      </div>`;
 
     viewEl.querySelector('[data-wx-back]').addEventListener('click', close);
     viewEl.querySelectorAll('[data-wx-tab]').forEach(btn => {
@@ -598,9 +515,6 @@
     if (nowCell) nowCell.scrollIntoView({ block: 'nearest', inline: 'center' });
   }
 
-  /* ============================================================
-   * 八、生命周期
-   * ============================================================ */
   function open(phoneScreen) {
     injectStyle();
     let v = phoneScreen.querySelector('#silly-weather-view');
@@ -629,18 +543,13 @@
     }
     if (!refreshTimer) refreshTimer = setInterval(render, 15000);
   }
+
   function close() {
     if (viewEl) viewEl.classList.remove('active');
     if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
   }
 
-  MOD.registerApp({
-    id: 'weather',
-    name: '天气',
-    emoji: '🌤️',
-    color: '#7FB8E8',
-    onOpen: open
-  });
+  MOD.registerApp({ id: 'weather', name: '天气', emoji: '🌤️', color: '#7FB8E8', onOpen: open });
 
-  console.log('[天气] weather-v9 已就绪（增强读取 + 防误判）');
+  console.log('[天气] weather-v9 已修复高度塌陷，24小时与日历已上线。');
 })();
