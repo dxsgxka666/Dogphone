@@ -18,7 +18,7 @@ export function initSettings() {
           <button onclick="this.closest('.app-view').remove()" style="background: none; border: none; font-size: 16px; color: #007aff; cursor: pointer;">← 返回</button>
           <div class="app-view-title" style="flex: 1; text-align: center; font-weight: 600; font-size: 16px; color: #1a1a1a;">设置</div>
         </div>
-        <div class="app-view-content" style="flex: 1; padding: 20px; overflow-y: auto;">
+        <div class="app-view-content" style="flex: 1; padding: 20px; padding-bottom: 60px; overflow-y: auto;">
           <label style="font-size:14px; font-weight:600; margin-bottom:8px; display:block; color:#333;">手机背景</label>
           <label class="setting-btn" style="display: block; width: 100%; padding: 12px; border-radius: 10px; background: #f0f2f5; color: #1a1a1a; border: 1px solid #d0d5dd; cursor: pointer; font-size: 14px; text-align: center; margin-bottom: 16px;">
             选择相册图片
