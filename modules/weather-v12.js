@@ -4,48 +4,48 @@ const STYLES = `
     background: linear-gradient(180deg, #dcf0ff 0%, #f2f9ff 100%);
     width: 100%; height: 100%; display: flex; flex-direction: column;
     color: #333; font-family: -apple-system, "PingFang SC", sans-serif;
-    position: relative;
+    position: relative; overflow-y: auto; overflow-x: hidden;
 }
 
 /* 顶部搜索栏 */
 .weather-search-bar {
     background: rgba(255,255,255,0.6); margin: 40px 15px 15px 15px; padding: 10px 15px;
     border-radius: 20px; font-size: 14px; color: #666; display: flex; align-items: center;
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px); flex-shrink: 0;
 }
 
 /* 天气主卡片 - 复刻蓝橙渐变 */
 .weather-main-card {
     background: linear-gradient(150deg, #74b9ff 0%, #a2c2e8 40%, #fbdcb0 100%);
     margin: 0 15px 15px 15px; border-radius: 24px; padding: 20px; color: #fff;
-    box-shadow: 0 8px 20px rgba(116, 185, 255, 0.3); position: relative; overflow: hidden;
+    box-shadow: 0 8px 20px rgba(116, 185, 255, 0.3); position: relative; overflow: hidden; flex-shrink: 0;
 }
 .weather-main-card .city-title { font-size: 16px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .weather-main-card .temp-huge { font-size: 72px; font-weight: 800; line-height: 1; margin: 10px 0 5px 0; text-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 .weather-main-card .temp-range { font-size: 13px; opacity: 0.9; margin-bottom: 25px; }
 .weather-main-card .tips-text { font-size: 14px; line-height: 1.5; margin-bottom: 20px; font-weight: 500; }
 .weather-main-card .details-row { display: flex; justify-content: space-between; font-size: 12px; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.3); padding-top: 15px; }
-.weather-giant-icon { position: absolute; right: 10px; top: 40px; font-size: 110px; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.15)); line-height: 1; }
+.weather-giant-icon { position: absolute; right: 5px; top: 20px; font-size: 100px; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.15)); line-height: 1; z-index: 0; opacity: 0.95;}
 
 /* 玻璃态小卡片通用样式 */
 .glass-card {
-    background: rgba(255, 255, 255, 0.55); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.7);
-    margin: 0 15px 15px 15px; border-radius: 20px; padding: 15px; color: #444;
+    background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.7);
+    margin: 0 15px 15px 15px; border-radius: 20px; padding: 15px; color: #444; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.03);
 }
-.card-title { font-size: 14px; font-weight: 700; color: #1e5ba9; margin-bottom: 12px; }
+.card-title { font-size: 14px; font-weight: 700; color: #5a8bd4; margin-bottom: 12px; }
 
 /* 今日天气趋势 */
 .trend-row { display: flex; justify-content: space-between; text-align: center; }
 .trend-item { flex: 1; font-size: 13px; line-height: 1.6; }
 .trend-item .phase { font-weight: 600; color: #555; }
-.trend-item .desc { color: #1a73e8; }
+.trend-item .desc { color: #5a8bd4; }
 .trend-item .range { font-size: 12px; color: #777; }
 
 /* 24小时天气 */
-.hourly-row { display: flex; overflow-x: auto; gap: 15px; padding-bottom: 5px; scrollbar-width: none; }
-.hourly-item { display: flex; flex-direction: column; align-items: center; min-width: 45px; font-size: 12px; color: #666; gap: 6px; padding: 8px 0; border-radius: 12px; }
-.hourly-item.active { background: #fff; color: #1a73e8; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-.hourly-item .icon { font-size: 20px; }
+.hourly-row { display: flex; overflow-x: auto; gap: 10px; padding-bottom: 5px; scrollbar-width: none; }
+.hourly-item { display: flex; flex-direction: column; align-items: center; min-width: 48px; font-size: 12px; color: #666; gap: 6px; padding: 10px 0; border-radius: 12px; transition: 0.3s; }
+.hourly-item.active { background: #fff; color: #5a8bd4; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+.hourly-item .icon { font-size: 22px; }
 
 /* 日历页面样式 */
 .weather-tabs { display: flex; background: #e0edfb; border-radius: 20px; margin: 40px 15px 15px 15px; padding: 4px; flex-shrink: 0; }
@@ -63,9 +63,9 @@ const STYLES = `
 .day-cell .lunar { font-size: 10px; color: #aaa; transform: scale(0.85); margin-top: -2px; }
 
 /* 底部导航栏 */
-.bottom-nav { display: flex; justify-content: space-around; padding: 12px 0 24px 0; background: rgba(255,255,255,0.95); border-top: 1px solid rgba(0,0,0,0.05); flex-shrink: 0; backdrop-filter: blur(10px); }
+.bottom-nav { display: flex; justify-content: space-around; padding: 12px 0 24px 0; background: rgba(255,255,255,0.95); border-top: 1px solid rgba(0,0,0,0.05); flex-shrink: 0; position: sticky; bottom: 0; backdrop-filter: blur(10px); z-index: 10; }
 .nav-item { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 12px; color: #999; cursor: pointer; transition: 0.2s; font-weight: 500; flex: 1; }
-.nav-item.active { color: #1a73e8; }
+.nav-item.active { color: #5a8bd4; }
 .nav-item i { font-size: 22px; font-style: normal; }
 
 /* 隐藏滚动条 */
@@ -73,8 +73,8 @@ const STYLES = `
 `;
 
 // 生成 100+ 条温馨提示库
-const baseTipsA = ["天气正好", "有些干燥", "风力微弱", "温度适宜", "略显闷热", "紫外线较强", "空气清新", "稍有降温", "阳光明媚", "细雨绵绵", "湿度偏高", "气候凉爽"];
-const baseTipsB = ["适合出门散步", "记得多喝热水", "注意防晒保护", "记得带把小伞", "穿轻薄衣物即可", "适合宅家看剧", "注意早晚温差", "多吃点水果", "保持好心情哦", "适合户外运动", "记得添件外套"];
+const baseTipsA = ["天气正好", "有些干燥", "风力微弱", "温度适宜", "略显闷热", "紫外线较强", "空气清新", "稍有降温", "阳光明媚", "细雨绵绵", "湿度偏高", "气候凉爽", "天空澄澈"];
+const baseTipsB = ["适合出门散步", "记得多喝热水", "注意防晒保护", "记得带把小伞", "穿轻薄衣物即可", "适合宅家看剧", "注意早晚温差", "多吃点水果", "保持好心情哦", "适合户外运动", "记得添件外套", "可以开窗通风"];
 const WARM_TIPS = [];
 for (let i = 0; i < baseTipsA.length; i++) {
     for (let j = 0; j < baseTipsB.length; j++) {
@@ -82,34 +82,33 @@ for (let i = 0; i < baseTipsA.length; i++) {
     }
 }
 
-// 基于角色ID生成确定性的哈希数值，确保同一个角色看天气是一致的
+// 基于角色ID生成确定性的哈希数值
 function getCharHash(charId) {
     let hash = 0;
-    const str = charId || "default";
+    const str = charId || "default_user";
     for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
     return Math.abs(hash);
 }
 
-// 注入30天天气预报到 AI 世界书
-function injectWeatherForecast() {
-    const context = window.parent.SillyTavern?.getContext?.();
-    if (!context || !context.characterId) return;
-    
-    let weatherForecast = "【未来30天本地天气预报】\n";
-    const weathers = ['晴朗', '多云', '阵雨', '大风', '阴天', '暴雨', '雷阵雨'];
+// 注入30天天气预报到 AI 世界书上下文
+function injectWeatherForecast(charId, weatherName) {
+    if (!charId) return;
+    let weatherForecast = `【当前角色所在环境未来30天天气预报】\n当前天气基调：${weatherName}。\n`;
+    const weathers = ['晴朗', '多云', '阵雨', '大风', '阴天', '暴雨', '雷阵雨', '微风', '大雾'];
     for(let i = 1; i <= 30; i++) {
-        weatherForecast += `未来第${i}天：${weathers[Math.floor(Math.random() * weathers.length)]}；`;
+        weatherForecast += `第${i}天：${weathers[Math.floor(Math.random() * weathers.length)]}；`;
     }
 
     if (window.parent.TavernHelper && window.parent.TavernHelper.injectPrompts) {
         window.parent.TavernHelper.injectPrompts([{
-            id: `dogphone_weather_forecast`,
+            id: `dogphone_weather_forecast_${charId}`,
             position: 'before_char',
             depth: 0,
             role: 'system',
             content: `这是一份通过手机查看到的本地天气预报，请根据预报合理安排出行或室内剧情：\n${weatherForecast}`,
             should_scan: true
-        }], { once: false });
+        }], { once: true });
+        console.log(`[小狗手机] 已将天气预报成功注入世界环境 (角色ID: ${charId})`);
     }
 }
 
@@ -119,19 +118,24 @@ class WeatherApp {
         this.currentView = 'weather'; // 'weather' or 'calendar'
         this.calTab = 'month'; // 'day', 'month', 'year'
         this.lastCharId = null;
-        this.render();
+        this.initChar();
         this.startCharMonitor();
+    }
+
+    initChar() {
+        const context = window.parent.SillyTavern?.getContext?.();
+        this.lastCharId = context?.characterId || "none";
+        this.render();
     }
 
     // 监控酒馆当前选中角色的变化
     startCharMonitor() {
         this.charInterval = setInterval(() => {
             const context = window.parent.SillyTavern?.getContext?.();
-            const currentCharId = context?.characterId;
-            if (currentCharId && currentCharId !== this.lastCharId) {
+            const currentCharId = context?.characterId || "none";
+            if (currentCharId !== this.lastCharId) {
                 this.lastCharId = currentCharId;
                 this.render(); // 角色切换，重新渲染生成该角色的专属天气
-                injectWeatherForecast();
             }
         }, 1000);
     }
@@ -140,12 +144,15 @@ class WeatherApp {
     getWeatherData() {
         const hash = getCharHash(this.lastCharId);
         const tempBase = 15 + (hash % 20); // 15° - 35°
-        const weatherIcons = ['☀️', '⛅', '☁️', '🌧️', '⛈️'];
-        const weatherDescs = ['晴朗', '多云', '阴天', '阵雨', '雷阵雨'];
+        const weatherIcons = ['☀️', '⛅', '☁️', '🌧️', '⛈️', '❄️'];
+        const weatherDescs = ['温暖', '多云', '阴沉', '阵雨', '雷阵雨', '初雪'];
         const wIdx = hash % weatherIcons.length;
         
+        const context = window.parent.SillyTavern?.getContext?.();
+        const charName = (context && context.characters && this.lastCharId !== "none") ? context.characters[this.lastCharId].name : "本地";
+
         return {
-            city: "本地城市",
+            city: `${charName}所在的城市`,
             temp: tempBase,
             tempHigh: tempBase + 3,
             tempLow: tempBase - 4,
@@ -156,13 +163,13 @@ class WeatherApp {
             uv: (hash % 10 + 1),
             tip: WARM_TIPS[hash % WARM_TIPS.length],
             trend: [
-                { time: '上午', desc: weatherDescs[(wIdx+1)%5], range: `${tempBase-2}°~${tempBase+1°}` },
-                { time: '下午', desc: weatherDescs[(wIdx)%5], range: `${tempBase}°~${tempBase+3°}` },
-                { time: '晚上', desc: weatherDescs[(wIdx+2)%5], range: `${tempBase-3}°~${tempBase-1°}` }
+                { time: '上午', desc: weatherDescs[(wIdx+1)%weatherIcons.length], range: `${tempBase-2}°~${tempBase+1}°` },
+                { time: '下午', desc: weatherDescs[(wIdx)%weatherIcons.length], range: `${tempBase}°~${tempBase+3}°` },
+                { time: '晚上', desc: weatherDescs[(wIdx+2)%weatherIcons.length], range: `${tempBase-3}°~${tempBase-1}°` }
             ],
-            hourly: Array.from({length: 6}, (_, i) => ({
-                time: i === 1 ? '现在' : `${12 + i}:00`,
-                icon: weatherIcons[(wIdx + i) % 5],
+            hourly: Array.from({length: 8}, (_, i) => ({
+                time: i === 1 ? '现在' : `${(12 + i) % 24}:00`,
+                icon: weatherIcons[(wIdx + i) % weatherIcons.length],
                 active: i === 1
             }))
         };
@@ -170,7 +177,9 @@ class WeatherApp {
 
     render() {
         if (this.currentView === 'weather') {
-            this.container.innerHTML = this.getWeatherHTML();
+            const data = this.getWeatherData();
+            injectWeatherForecast(this.lastCharId, data.desc);
+            this.container.innerHTML = this.getWeatherHTML(data);
         } else {
             this.container.innerHTML = this.getCalendarHTML();
             this.bindCalendarTabs();
@@ -178,8 +187,7 @@ class WeatherApp {
         this.bindNavEvents();
     }
 
-    getWeatherHTML() {
-        const data = this.getWeatherData();
+    getWeatherHTML(data) {
         const hourlyHTML = data.hourly.map(h => `
             <div class="hourly-item ${h.active ? 'active' : ''}">
                 <span>${h.time}</span>
@@ -188,16 +196,16 @@ class WeatherApp {
         `).join('');
 
         return `
-        <div class="weather-app-container" style="overflow-y: auto;">
-            <div class="weather-search-bar">🔍 搜索城市 / 景点</div>
+        <div class="weather-app-container">
+            <div class="weather-search-bar">🔍 搜索城市</div>
             
             <div class="weather-main-card">
                 <div class="city-title">${data.city} · ${data.desc}</div>
+                <div class="weather-giant-icon">${data.icon}</div>
                 <div class="temp-huge">${data.temp}°</div>
                 <div class="temp-range">↑ ${data.tempHigh}° ↓ ${data.tempLow}°</div>
-                <div class="weather-giant-icon">${data.icon}</div>
                 
-                <div class="tips-text">今日天气播报<br>${data.tip}</div>
+                <div class="tips-text">${data.tip}</div>
                 
                 <div class="details-row">
                     <span>💧 降雨 ${data.rain}</span>
@@ -251,7 +259,7 @@ class WeatherApp {
         for (let i = 1; i <= daysInMonth; i++) {
             const isToday = i === today ? 'active' : '';
             const isWeekend = (firstDay + i - 1) % 7 === 0 || (firstDay + i - 1) % 7 === 6 ? 'weekend' : '';
-            const lunarDay = i % 2 === 0 ? '初一' : '十五'; // 模拟农历
+            const lunarDay = i % 2 === 0 ? '初一' : '十五'; 
             gridHTML += `<div class="day-cell ${isToday} ${isWeekend}"><span>${i}</span><span class="lunar">${lunarDay}</span></div>`;
         }
 
@@ -259,14 +267,29 @@ class WeatherApp {
         const isMonth = this.calTab === 'month' ? 'active' : '';
         const isYear = this.calTab === 'year' ? 'active' : '';
 
-        // 简易视图占位，核心展示月视图
-        const contentArea = this.calTab === 'month' ? `
-            <div class="calendar-header">
-                <span>${year}年${month + 1}月</span>
-                <span style="color:#aaa; font-size:14px;">&lt; &gt;</span>
-            </div>
-            <div class="calendar-grid">${gridHTML}</div>
-        ` : `<div style="text-align:center; padding: 40px 0; color:#888;">【${this.calTab === 'day' ? '今日日程' : '年度预览'}视图】<br>UI已对齐截图结构</div>`;
+        let contentArea = '';
+        if (this.calTab === 'month') {
+             contentArea = `
+                <div class="calendar-header">
+                    <span>${year}年${month + 1}月</span>
+                    <span style="color:#aaa; font-size:14px; cursor:pointer;">&lt; &gt;</span>
+                </div>
+                <div class="calendar-grid">${gridHTML}</div>
+            `;
+        } else if (this.calTab === 'day') {
+             contentArea = `
+                <div class="calendar-header">
+                    <span>今天 · ${month + 1}月${today}日</span>
+                    <span style="color:#5a8bd4; font-size:14px; cursor:pointer;">+ 添加日程</span>
+                </div>
+                <div style="text-align:center; padding: 60px 0; color:#aaa; font-size: 14px;">
+                    <div style="font-size: 40px; margin-bottom: 10px;">🌸</div>
+                    今天还没有安排哦~
+                </div>
+            `;
+        } else {
+             contentArea = `<div style="text-align:center; padding: 60px 0; color:#aaa;">${year}年 全年总览</div>`;
+        }
 
         return `
         <div class="weather-app-container">
@@ -288,7 +311,7 @@ class WeatherApp {
     getNavHTML() {
         const isW = this.currentView === 'weather' ? 'active' : '';
         const isC = this.currentView === 'calendar' ? 'active' : '';
-        // 删除了“小火车”和“我的”
+        // 底部只有 看天气 和 看日历 两个按钮
         return `
         <div class="bottom-nav">
             <div class="nav-item ${isW}" id="nav-weather">
@@ -326,9 +349,9 @@ class WeatherApp {
 if (window.sillyPhone) {
     window.sillyPhone.registerApp({
         id: 'weather-calendar-v12',
-        name: '搭搭天气',
-        emoji: '☀️',
-        color: '#e0edfb',
+        name: '天气',
+        emoji: '🌤️',
+        color: '#74b9ff',
         onOpen: (phoneScreen) => {
             const shadow = window.sillyPhone.shadow;
             
@@ -341,29 +364,27 @@ if (window.sillyPhone) {
 
             const appView = document.createElement('div');
             appView.className = 'app-view active';
+            appView.style.background = '#f2f9ff';
             
             const container = document.createElement('div');
             container.style.cssText = "flex: 1; overflow: hidden; display: flex; flex-direction: column;";
             
             appView.innerHTML = `
-                <div class="app-view-header">
-                    <span style="cursor:pointer; font-size:18px;" class="back-btn">🔙</span>
-                    <div class="app-view-title" style="font-weight:700;">搭搭天气</div>
+                <div class="app-view-header" style="background:#fff; border-bottom: none; box-shadow: 0 2px 10px rgba(0,0,0,0.05); z-index: 100;">
+                    <span style="cursor:pointer; font-size:18px; padding: 0 10px;" class="back-btn">🔙</span>
+                    <div class="app-view-title" style="font-weight:700; color:#444;">搭搭天气</div>
                 </div>
             `;
             appView.appendChild(container);
             phoneScreen.appendChild(appView);
 
-            // 初始化应用
+            // 启动应用
             const app = new WeatherApp(container);
 
             appView.querySelector('.back-btn').addEventListener('click', () => {
                 app.destroy();
                 appView.remove();
             });
-            
-            // 初次打开注入一次
-            injectWeatherForecast();
         }
     });
 }
